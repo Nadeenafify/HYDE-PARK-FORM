@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const MONTHS = [
@@ -12,6 +12,14 @@ const TIME_SLOTS = [
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+// Local YYYY-MM-DD (avoids a UTC off-by-one), matching the booking payload.
+function toISO(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function sameDay(a: Date | null, b: Date | null) {
@@ -28,6 +36,8 @@ type Props = {
   onSelectDate: (d: Date) => void
   selectedTime: string | null
   onSelectTime: (t: string) => void
+  /** Booked slots keyed as "YYYY-MM-DD|10:00 AM" — these are disabled. */
+  takenSlots?: Set<string>
 }
 
 export default function DateTimePicker({
@@ -35,6 +45,7 @@ export default function DateTimePicker({
   onSelectDate,
   selectedTime,
   onSelectTime,
+  takenSlots,
 }: Props) {
   const today = startOfDay(new Date())
   const initial = selectedDate ?? today
@@ -48,6 +59,21 @@ export default function DateTimePicker({
     ...Array<null>(firstWeekday).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
+
+  // Dates whose every time slot is already booked — disabled in the calendar.
+  const fullDates = useMemo(() => {
+    if (!takenSlots) return new Set<string>()
+    const counts = new Map<string, number>()
+    for (const key of takenSlots) {
+      const date = key.split('|')[0]
+      counts.set(date, (counts.get(date) ?? 0) + 1)
+    }
+    const full = new Set<string>()
+    for (const [date, count] of counts) {
+      if (count >= TIME_SLOTS.length) full.add(date)
+    }
+    return full
+  }, [takenSlots])
 
   function goMonth(delta: number) {
     const m = viewMonth + delta
@@ -63,6 +89,8 @@ export default function DateTimePicker({
         day: 'numeric',
       })
     : 'Select a date'
+
+  const selectedISO = selectedDate ? toISO(selectedDate) : null
 
   return (
     <div className="flex flex-col gap-6 md:flex-row" dir="ltr">
@@ -103,22 +131,26 @@ export default function DateTimePicker({
             if (day === null) return <div key={`e-${idx}`} />
             const cellDate = new Date(viewYear, viewMonth, day)
             const isPast = cellDate < today
+            const isFull = fullDates.has(toISO(cellDate))
+            const disabled = isPast || isFull
             const isSelected = sameDay(cellDate, selectedDate)
             const isToday = sameDay(cellDate, today)
             return (
               <div key={day} className="flex items-center justify-center">
                 <button
                   type="button"
-                  disabled={isPast}
+                  disabled={disabled}
+                  title={isFull ? 'كل المواعيد محجوزة' : undefined}
                   onClick={() => onSelectDate(cellDate)}
                   className={[
                     'flex h-9 w-9 items-center justify-center rounded-full transition',
                     isSelected
                       ? 'bg-[#222a4d] font-semibold text-white shadow-sm'
-                      : isPast
+                      : disabled
                         ? 'cursor-not-allowed text-slate-300'
                         : 'text-slate-700 hover:bg-[#222a4d]/8',
-                    isToday && !isSelected ? 'ring-1 ring-[#222a4d]/30' : '',
+                    isFull && !isSelected ? 'line-through' : '',
+                    isToday && !isSelected && !disabled ? 'ring-1 ring-[#222a4d]/30' : '',
                   ].join(' ')}
                 >
                   {day}
@@ -136,22 +168,29 @@ export default function DateTimePicker({
         </div>
         <div className="grid grid-cols-2 gap-3">
           {TIME_SLOTS.map((slot) => {
+            const taken = selectedISO
+              ? (takenSlots?.has(`${selectedISO}|${slot}`) ?? false)
+              : false
             const active = selectedTime === slot
+            const disabled = !selectedDate || taken
             return (
               <button
                 key={slot}
                 type="button"
-                disabled={!selectedDate}
+                disabled={disabled}
                 onClick={() => onSelectTime(slot)}
                 className={[
-                  'rounded-xl border py-2.5 text-sm font-medium transition',
-                  active
-                    ? 'border-[#222a4d] bg-[#222a4d] text-white shadow-sm'
-                    : 'border-slate-200 text-[#2d3e50] hover:border-[#222a4d]/40 hover:bg-[#222a4d]/5',
+                  'flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-medium transition',
+                  taken
+                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                    : active
+                      ? 'border-[#222a4d] bg-[#222a4d] text-white shadow-sm'
+                      : 'border-slate-200 text-[#2d3e50] hover:border-[#222a4d]/40 hover:bg-[#222a4d]/5',
                   !selectedDate ? 'cursor-not-allowed opacity-50' : '',
                 ].join(' ')}
               >
-                {slot}
+                <span className={taken ? 'line-through' : ''}>{slot}</span>
+                {taken && <span className="text-[10px] font-semibold">محجوز</span>}
               </button>
             )
           })}

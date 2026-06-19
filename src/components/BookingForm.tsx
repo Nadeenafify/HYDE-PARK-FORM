@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import DateTimePicker from './DateTimePicker'
-import { fetchUnits, submitBooking } from '../api'
+import { fetchBookedSlots, fetchUnits, submitBooking } from '../api'
 
 // Fallback list used only if the backend can't be reached. The live list is
 // loaded from GET /api/units on mount.
@@ -90,6 +90,8 @@ export default function BookingForm() {
   const [units, setUnits] = useState<string[]>(UNIT_OPTIONS)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // Already-booked installation slots, keyed as "YYYY-MM-DD|10:00 AM".
+  const [takenSlots, setTakenSlots] = useState<Set<string>>(new Set())
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -101,6 +103,15 @@ export default function BookingForm() {
       })
       .catch(() => {
         /* backend offline — keep UNIT_OPTIONS fallback */
+      })
+  }, [])
+
+  // Load already-booked slots so taken date/time options are disabled.
+  useEffect(() => {
+    fetchBookedSlots()
+      .then((slots) => setTakenSlots(new Set(slots.map((s) => `${s.date}|${s.time}`))))
+      .catch(() => {
+        /* availability unknown — server still enforces it on submit */
       })
   }, [])
 
@@ -148,6 +159,17 @@ export default function BookingForm() {
       setSubmitError(
         err instanceof Error ? err.message : 'تعذّر إرسال الطلب، حاول مرة أخرى',
       )
+      // The slot may have just been taken by someone else — refresh availability
+      // and clear the chosen time if it is no longer free.
+      fetchBookedSlots()
+        .then((slots) => {
+          const set = new Set(slots.map((s) => `${s.date}|${s.time}`))
+          setTakenSlots(set)
+          if (date && time && set.has(`${toISODate(date)}|${time}`)) {
+            setTime(null)
+          }
+        })
+        .catch(() => {})
     } finally {
       setSubmitting(false)
     }
@@ -361,6 +383,7 @@ export default function BookingForm() {
             setTime(t)
             setErrors((er) => ({ ...er, datetime: undefined }))
           }}
+          takenSlots={takenSlots}
         />
       </Field>
 

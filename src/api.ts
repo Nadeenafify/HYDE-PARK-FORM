@@ -39,6 +39,15 @@ export async function fetchUnits(): Promise<Unit[]> {
   return res.json()
 }
 
+export type TakenSlot = { date: string; time: string }
+
+/** Installation slots already booked (date + time), so the form can hide them. */
+export async function fetchBookedSlots(): Promise<TakenSlot[]> {
+  const res = await fetch(`${BASE}/api/bookings/availability`)
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
+
 export async function submitBooking(payload: BookingPayload) {
   const form = new FormData()
   form.append('unitCode', payload.unitCode)
