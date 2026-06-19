@@ -1,12 +1,12 @@
 /**
- * Hyde Park Developments brand lockup: the navy "H" monogram (served as a PNG
- * from /public) next to the "HYDE PARK / DEVELOPMENTS" wordmark.
+ * Hyde Park Developments brand lockup: the navy "H" monogram (a transparent SVG
+ * served from /public) next to the "HYDE PARK / DEVELOPMENTS" wordmark.
  */
 
 export function HydeParkMark({ className }: { className?: string }) {
   return (
     <img
-      src="/HYDEPARK_ICON.png"
+      src="/logo.svg"
       alt="Hyde Park Developments"
       className={`object-contain ${className ?? ''}`}
     />
