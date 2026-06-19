@@ -10,6 +10,17 @@ const TIME_SLOTS = [
   '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM',
 ]
 
+// Fixed-date Egyptian national holidays (recur yearly), keyed as "MM-DD".
+const FIXED_HOLIDAYS: Record<string, string> = {
+  '01-07': 'عيد الميلاد المجيد',
+  '01-25': 'عيد الشرطة وثورة 25 يناير',
+  '04-25': 'عيد تحرير سيناء',
+  '05-01': 'عيد العمال',
+  '06-30': 'ذكرى ثورة 30 يونيو',
+  '07-23': 'عيد ثورة 23 يوليو',
+  '10-06': 'عيد القوات المسلحة',
+}
+
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
@@ -20,6 +31,13 @@ function toISO(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+// "MM-DD" for matching against the fixed-holiday list.
+function monthDay(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${m}-${day}`
 }
 
 function sameDay(a: Date | null, b: Date | null) {
@@ -131,7 +149,9 @@ export default function DateTimePicker({
             if (day === null) return <div key={`e-${idx}`} />
             const cellDate = new Date(viewYear, viewMonth, day)
             const weekday = cellDate.getDay() // 5 = Friday, 6 = Saturday
-            const isClosed = weekday === 5 || weekday === 6
+            const isWeekend = weekday === 5 || weekday === 6
+            const holiday = FIXED_HOLIDAYS[monthDay(cellDate)]
+            const isClosed = isWeekend || !!holiday
             const isPast = cellDate < today
             const isFull = fullDates.has(toISO(cellDate))
             const disabled = isPast || isFull || isClosed
@@ -143,11 +163,13 @@ export default function DateTimePicker({
                   type="button"
                   disabled={disabled}
                   title={
-                    isClosed
-                      ? 'عطلة رسمية — الجمعة والسبت'
-                      : isFull
-                        ? 'كل المواعيد محجوزة'
-                        : undefined
+                    holiday
+                      ? `عطلة رسمية — ${holiday}`
+                      : isWeekend
+                        ? 'عطلة رسمية — الجمعة والسبت'
+                        : isFull
+                          ? 'كل المواعيد محجوزة'
+                          : undefined
                   }
                   onClick={() => onSelectDate(cellDate)}
                   className={[
@@ -169,7 +191,7 @@ export default function DateTimePicker({
         </div>
 
         <p className="mt-3 text-center text-[11px] text-slate-400">
-          الجمعة والسبت إجازة رسمية
+          الجمعة والسبت والأعياد الرسمية إجازة
         </p>
       </div>
 
