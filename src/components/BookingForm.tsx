@@ -27,16 +27,25 @@ type Errors = Partial<
 
 function Label({ ar, en }: { ar: string; en: string }) {
   return (
-    <span className="text-[15px] font-medium text-[#3a4a5a]">
-      <span className="text-red-500">*</span> {ar} /{' '}
-      <span className="text-[#3a4a5a]">{en}</span>
+    <span className="flex flex-wrap items-baseline gap-x-1.5 text-[15px] font-semibold text-[#2d3e50]">
+      <span className="text-[#b58b5a]">*</span>
+      <span>{ar}</span>
+      <span dir="ltr" className="text-xs font-normal text-slate-400">
+        / {en}
+      </span>
     </span>
   )
 }
 
-// Border styles toggled by a field's validation state.
-const ERR_BORDER = 'border-red-400 focus:border-red-500 focus:ring-red-500'
-const OK_BORDER = 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+// Shared input styling, with border/ring colors swapped on validation state.
+const INPUT_BASE =
+  'w-full rounded-xl border bg-slate-50/60 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:bg-white focus:ring-4'
+const ERR_BORDER = 'border-red-300 focus:border-red-400 focus:ring-red-400/15'
+const OK_BORDER = 'border-slate-200 focus:border-[#222a4d] focus:ring-[#222a4d]/12'
+
+function fieldClass(hasError: boolean, extra = '') {
+  return `${INPUT_BASE} ${hasError ? ERR_BORDER : OK_BORDER} ${extra}`.trim()
+}
 
 export default function BookingForm() {
   const [unit, setUnit] = useState('')
@@ -119,20 +128,46 @@ export default function BookingForm() {
   if (submitted) {
     return (
       <div className="px-8 py-16 text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-green-600">
-          ✓
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 text-white shadow-lg shadow-emerald-500/30">
+          <svg
+            className="h-10 w-10"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+          </svg>
         </div>
-        <h2 className="text-2xl font-semibold text-[#2d3e50]">تم إرسال طلبك بنجاح</h2>
-        <p className="mt-2 text-gray-500">سنتواصل معك لتأكيد معاد التركيب.</p>
-        <p className="mt-1 text-sm text-gray-400">
-          {date?.toLocaleDateString('en-GB')} — {time}
+        <h2 className="text-2xl font-bold text-[#222a4d]">تم إرسال طلبك بنجاح</h2>
+        <p className="mt-2 text-sm text-slate-500">
+          سنتواصل معك قريباً لتأكيد موعد التركيب.
         </p>
+        <div
+          dir="ltr"
+          className="mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-slate-50 px-4 py-2 text-sm font-semibold text-[#222a4d] ring-1 ring-slate-100"
+        >
+          <svg
+            className="h-4 w-4 text-[#b58b5a]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.8}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
+            />
+          </svg>
+          {date?.toLocaleDateString('en-GB')} — {time}
+        </div>
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="px-6 py-8 sm:px-10">
+    <form onSubmit={handleSubmit} noValidate className="px-6 py-8 sm:px-10 sm:py-9">
       {/* Unit Number */}
       <Field label={<Label ar="رقم الوحدة" en="Unit Number" />} error={errors.unit}>
         <select
@@ -142,9 +177,7 @@ export default function BookingForm() {
             setUnit(e.target.value)
             setErrors((er) => ({ ...er, unit: undefined }))
           }}
-          className={`w-full rounded-md border bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-1 ${
-            errors.unit ? ERR_BORDER : OK_BORDER
-          }`}
+          className={fieldClass(!!errors.unit, 'cursor-pointer')}
         >
           <option value="" disabled>
             Please select
@@ -171,11 +204,9 @@ export default function BookingForm() {
                 setFirstName(e.target.value)
                 setErrors((er) => ({ ...er, firstName: undefined }))
               }}
-              className={`w-full rounded-md border px-3 py-2.5 text-sm outline-none focus:ring-1 ${
-                errors.firstName ? ERR_BORDER : OK_BORDER
-              }`}
+              className={fieldClass(!!errors.firstName)}
             />
-            <span className="mt-1 block text-xs text-[#b58b5a]">الاسم الاول</span>
+            <span className="mt-1.5 block text-xs text-[#b58b5a]">الاسم الاول</span>
           </div>
           <div>
             <input
@@ -185,11 +216,9 @@ export default function BookingForm() {
                 setLastName(e.target.value)
                 setErrors((er) => ({ ...er, lastName: undefined }))
               }}
-              className={`w-full rounded-md border px-3 py-2.5 text-sm outline-none focus:ring-1 ${
-                errors.lastName ? ERR_BORDER : OK_BORDER
-              }`}
+              className={fieldClass(!!errors.lastName)}
             />
-            <span className="mt-1 block text-xs text-[#b58b5a]">الاسم الاخر</span>
+            <span className="mt-1.5 block text-xs text-[#b58b5a]">الاسم الاخر</span>
           </div>
         </div>
       </Field>
@@ -206,9 +235,7 @@ export default function BookingForm() {
           }}
           placeholder="00000000000"
           dir="ltr"
-          className={`w-full rounded-md border px-3 py-2.5 text-right text-sm outline-none placeholder:text-gray-300 focus:ring-1 ${
-            errors.mobile ? ERR_BORDER : OK_BORDER
-          }`}
+          className={fieldClass(!!errors.mobile, 'text-right')}
         />
       </Field>
 
@@ -236,31 +263,60 @@ export default function BookingForm() {
             handleFile(e.dataTransfer.files)
           }}
           className={[
-            'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed px-6 py-10 text-center transition',
+            'group flex cursor-pointer flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed px-6 py-9 text-center transition',
             dragOver
-              ? 'border-indigo-500 bg-indigo-50'
+              ? 'border-[#222a4d] bg-[#222a4d]/5'
               : errors.receipt
-                ? 'border-red-400 bg-red-50/40'
-                : 'border-gray-300 bg-gray-50/50',
+                ? 'border-red-300 bg-red-50/40'
+                : receipt
+                  ? 'border-[#b58b5a]/60 bg-[#b58b5a]/5'
+                  : 'border-slate-300 bg-slate-50/50 hover:border-[#222a4d]/40 hover:bg-slate-50',
           ].join(' ')}
         >
-          <svg
-            className="h-9 w-9 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
+          <span
+            className={`flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm ring-1 transition ${
+              receipt ? 'ring-[#b58b5a]/30' : 'ring-slate-100 group-hover:ring-[#222a4d]/20'
+            }`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 7.5 12 3m0 0L7.5 7.5M12 3v13.5"
-            />
-          </svg>
+            {receipt ? (
+              <svg
+                className="h-5 w-5 text-[#b58b5a]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.8}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            ) : (
+              <svg
+                className="h-5 w-5 text-[#222a4d]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.8}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 7.5 12 3m0 0L7.5 7.5M12 3v13.5"
+                />
+              </svg>
+            )}
+          </span>
           {receipt ? (
-            <span className="text-sm font-medium text-indigo-600">{receipt.name}</span>
+            <span dir="ltr" className="text-sm font-semibold text-[#222a4d]">
+              {receipt.name}
+            </span>
           ) : (
-            <span className="text-sm text-gray-500">إسحب الملفات وأتركها هنا</span>
+            <>
+              <span className="text-sm font-medium text-slate-600">
+                إسحب صورة الإيصال هنا أو اضغط للرفع
+              </span>
+              <span dir="ltr" className="text-xs text-slate-400">
+                PNG · JPG · PDF
+              </span>
+            </>
           )}
           <input
             ref={fileInputRef}
@@ -292,11 +348,12 @@ export default function BookingForm() {
       </Field>
 
       {/* Terms */}
-      <div className="mb-6 mt-2">
-        <h3 className="mb-3 font-semibold text-red-600 underline">
+      <div className="mb-6 mt-2 rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
+        <h3 className="mb-3 flex items-center gap-2 font-bold text-[#222a4d]">
+          <span className="h-4 w-1 rounded-full bg-[#b58b5a]" />
           شروط تقديم وتفعيل الخدمة
         </h3>
-        <ol className="space-y-2 text-sm leading-relaxed text-[#3a4a5a]">
+        <ol className="space-y-2 text-sm leading-relaxed text-slate-600">
           <li>
             ١- على العميل أو مقدم هذا الطلب التأكد من وجود المسار الذى يربط بواط التجميع
             الداخلى للكهرباء بوحدة الألياف الضوئية المتواجدة خارج الوحدة ( شقة / فيلا ).
@@ -318,7 +375,7 @@ export default function BookingForm() {
 
       {/* Agreement */}
       <div className="mb-8">
-        <label className="flex cursor-pointer items-center gap-2">
+        <label className="flex cursor-pointer items-center gap-2.5">
           <input
             type="checkbox"
             checked={agree}
@@ -326,28 +383,48 @@ export default function BookingForm() {
               setAgree(e.target.checked)
               setErrors((er) => ({ ...er, agree: undefined }))
             }}
-            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            className="h-4 w-4 rounded border-slate-300 text-[#222a4d] focus:ring-[#222a4d]/30"
           />
-          <span className="text-sm text-[#3a4a5a]">
-            <span className="text-red-500">*</span> اوافق على شروط تقديم الخدمة
+          <span className="text-sm font-medium text-[#3a4a5a]">
+            <span className="text-[#b58b5a]">*</span> اوافق على شروط تقديم الخدمة
           </span>
         </label>
-        {errors.agree && <p className="mt-1 text-xs text-red-500">{errors.agree}</p>}
+        {errors.agree && <p className="mt-1.5 text-xs font-medium text-red-500">{errors.agree}</p>}
       </div>
 
       {/* Submit */}
       {submitError && (
-        <p className="mb-4 text-center text-sm text-red-600">{submitError}</p>
+        <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+          <svg
+            className="h-4 w-4 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.8}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+            />
+          </svg>
+          {submitError}
+        </div>
       )}
-      <div className="flex justify-center">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-indigo-600 px-10 py-2.5 font-medium text-white shadow-sm transition hover:bg-indigo-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {submitting ? '...جارٍ الإرسال' : 'إرسال / Submit'}
-        </button>
-      </div>
+      <button
+        type="submit"
+        disabled={submitting}
+        className="group relative w-full overflow-hidden rounded-xl bg-linear-to-r from-[#2c3660] to-[#222a4d] px-8 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-[#222a4d]/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#222a4d]/30 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+      >
+        {/* shimmer on hover */}
+        <span
+          aria-hidden
+          className="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full"
+        />
+        <span className="relative">
+          {submitting ? '...جارٍ الإرسال' : 'إرسال الطلب / Submit'}
+        </span>
+      </button>
     </form>
   )
 }
@@ -364,11 +441,11 @@ function Field({
   children: React.ReactNode
 }) {
   return (
-    <div className="mb-7">
+    <div className="mb-6">
       <div className="mb-2">{label}</div>
       {children}
       {hint && <p className="mt-1.5 text-xs text-[#b58b5a]">{hint}</p>}
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+      {error && <p className="mt-1.5 text-xs font-medium text-red-500">{error}</p>}
     </div>
   )
 }

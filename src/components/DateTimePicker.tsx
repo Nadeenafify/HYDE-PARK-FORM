@@ -67,30 +67,30 @@ export default function DateTimePicker({
   return (
     <div className="flex flex-col gap-6 md:flex-row" dir="ltr">
       {/* Calendar */}
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-4">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <button
             type="button"
             onClick={() => goMonth(-1)}
-            className="flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#222a4d]"
             aria-label="Previous month"
           >
             ‹
           </button>
-          <span className="text-sm font-semibold text-gray-700">
+          <span className="text-sm font-semibold text-[#2d3e50]">
             {MONTHS[viewMonth]} {viewYear}
           </span>
           <button
             type="button"
             onClick={() => goMonth(1)}
-            className="flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-[#222a4d]"
             aria-label="Next month"
           >
             ›
           </button>
         </div>
 
-        <div className="mb-1 grid grid-cols-7 text-center text-[0.7rem] font-semibold text-blue-500">
+        <div className="mb-1 grid grid-cols-7 text-center text-[0.7rem] font-semibold text-slate-400">
           {WEEKDAYS.map((d) => (
             <div key={d} className="py-1">
               {d}
@@ -112,13 +112,13 @@ export default function DateTimePicker({
                   disabled={isPast}
                   onClick={() => onSelectDate(cellDate)}
                   className={[
-                    'flex h-8 w-8 items-center justify-center rounded-full transition',
+                    'flex h-9 w-9 items-center justify-center rounded-full transition',
                     isSelected
-                      ? 'bg-indigo-600 font-semibold text-white'
+                      ? 'bg-[#222a4d] font-semibold text-white shadow-sm'
                       : isPast
-                        ? 'cursor-not-allowed text-gray-300'
-                        : 'text-gray-700 hover:bg-indigo-50',
-                    isToday && !isSelected ? 'ring-1 ring-indigo-300' : '',
+                        ? 'cursor-not-allowed text-slate-300'
+                        : 'text-slate-700 hover:bg-[#222a4d]/8',
+                    isToday && !isSelected ? 'ring-1 ring-[#222a4d]/30' : '',
                   ].join(' ')}
                 >
                   {day}
@@ -131,8 +131,8 @@ export default function DateTimePicker({
 
       {/* Time slots */}
       <div className="flex-1">
-        <div className="mb-3 flex items-center gap-2 text-gray-700">
-          <span className="text-sm font-medium">{headerLabel}</span>
+        <div className="mb-3 flex items-center gap-2 text-[#2d3e50]">
+          <span className="text-sm font-semibold">{headerLabel}</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {TIME_SLOTS.map((slot) => {
@@ -144,10 +144,10 @@ export default function DateTimePicker({
                 disabled={!selectedDate}
                 onClick={() => onSelectTime(slot)}
                 className={[
-                  'rounded-md border py-2.5 text-sm font-medium transition',
+                  'rounded-xl border py-2.5 text-sm font-medium transition',
                   active
-                    ? 'border-indigo-600 bg-indigo-600 text-white'
-                    : 'border-indigo-200 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50',
+                    ? 'border-[#222a4d] bg-[#222a4d] text-white shadow-sm'
+                    : 'border-slate-200 text-[#2d3e50] hover:border-[#222a4d]/40 hover:bg-[#222a4d]/5',
                   !selectedDate ? 'cursor-not-allowed opacity-50' : '',
                 ].join(' ')}
               >
@@ -156,7 +156,7 @@ export default function DateTimePicker({
             )
           })}
         </div>
-        <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
+        <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
           <span>🕐</span>
           <span>Africa/Cairo</span>
         </div>
