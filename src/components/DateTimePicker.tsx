@@ -119,8 +119,8 @@ export default function DateTimePicker({
         </div>
 
         <div className="mb-1 grid grid-cols-7 text-center text-[0.7rem] font-semibold text-slate-400">
-          {WEEKDAYS.map((d) => (
-            <div key={d} className="py-1">
+          {WEEKDAYS.map((d, i) => (
+            <div key={d} className={`py-1 ${i >= 5 ? 'text-slate-300' : ''}`}>
               {d}
             </div>
           ))}
@@ -130,9 +130,11 @@ export default function DateTimePicker({
           {cells.map((day, idx) => {
             if (day === null) return <div key={`e-${idx}`} />
             const cellDate = new Date(viewYear, viewMonth, day)
+            const weekday = cellDate.getDay() // 5 = Friday, 6 = Saturday
+            const isClosed = weekday === 5 || weekday === 6
             const isPast = cellDate < today
             const isFull = fullDates.has(toISO(cellDate))
-            const disabled = isPast || isFull
+            const disabled = isPast || isFull || isClosed
             const isSelected = sameDay(cellDate, selectedDate)
             const isToday = sameDay(cellDate, today)
             return (
@@ -140,7 +142,13 @@ export default function DateTimePicker({
                 <button
                   type="button"
                   disabled={disabled}
-                  title={isFull ? 'كل المواعيد محجوزة' : undefined}
+                  title={
+                    isClosed
+                      ? 'عطلة رسمية — الجمعة والسبت'
+                      : isFull
+                        ? 'كل المواعيد محجوزة'
+                        : undefined
+                  }
                   onClick={() => onSelectDate(cellDate)}
                   className={[
                     'flex h-9 w-9 items-center justify-center rounded-full transition',
@@ -159,6 +167,10 @@ export default function DateTimePicker({
             )
           })}
         </div>
+
+        <p className="mt-3 text-center text-[11px] text-slate-400">
+          الجمعة والسبت إجازة رسمية
+        </p>
       </div>
 
       {/* Time slots */}
