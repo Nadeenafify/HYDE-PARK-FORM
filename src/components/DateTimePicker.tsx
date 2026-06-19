@@ -179,18 +179,38 @@ export default function DateTimePicker({
                 type="button"
                 disabled={disabled}
                 onClick={() => onSelectTime(slot)}
+                aria-label={taken ? `${slot} — محجوز` : slot}
                 className={[
-                  'flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-medium transition',
+                  'flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-medium transition',
                   taken
-                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                    ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
                     : active
                       ? 'border-[#222a4d] bg-[#222a4d] text-white shadow-sm'
                       : 'border-slate-200 text-[#2d3e50] hover:border-[#222a4d]/40 hover:bg-[#222a4d]/5',
-                  !selectedDate ? 'cursor-not-allowed opacity-50' : '',
+                  !selectedDate && !taken ? 'cursor-not-allowed opacity-50' : '',
                 ].join(' ')}
               >
-                <span className={taken ? 'line-through' : ''}>{slot}</span>
-                {taken && <span className="text-[10px] font-semibold">محجوز</span>}
+                <span className={taken ? 'text-[13px] leading-none' : 'leading-none'}>
+                  {slot}
+                </span>
+                {taken && (
+                  <span className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-rose-400">
+                    <svg
+                      className="h-3 w-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 0h10.5a2.25 2.25 0 0 1 2.25 2.25v6A2.25 2.25 0 0 1 17.25 21H6.75A2.25 2.25 0 0 1 4.5 18.75v-6a2.25 2.25 0 0 1 2.25-2.25Z"
+                      />
+                    </svg>
+                    محجوز
+                  </span>
+                )}
               </button>
             )
           })}
