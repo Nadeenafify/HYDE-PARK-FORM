@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import DateTimePicker from './DateTimePicker'
-import { fetchBookedSlots, fetchUnits, submitBooking } from '../api'
+import { fetchBookedSlots, fetchClosedDays, fetchUnits, submitBooking } from '../api'
 
 // Fallback list used only if the backend can't be reached. The live list is
 // loaded from GET /api/units on mount.
@@ -92,6 +92,8 @@ export default function BookingForm() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   // Already-booked installation slots, keyed as "YYYY-MM-DD|10:00 AM".
   const [takenSlots, setTakenSlots] = useState<Set<string>>(new Set())
+  // Admin-declared closed days, mapped "YYYY-MM-DD" -> reason.
+  const [closedDays, setClosedDays] = useState<Map<string, string>>(new Map())
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -112,6 +114,17 @@ export default function BookingForm() {
       .then((slots) => setTakenSlots(new Set(slots.map((s) => `${s.date}|${s.time}`))))
       .catch(() => {
         /* availability unknown — server still enforces it on submit */
+      })
+  }, [])
+
+  // Load admin-declared closed days (holidays) so they're disabled too.
+  useEffect(() => {
+    fetchClosedDays()
+      .then((days) =>
+        setClosedDays(new Map(days.map((d) => [d.date, d.reason ?? 'إجازة']))),
+      )
+      .catch(() => {
+        /* closed days unknown — server still enforces it on submit */
       })
   }, [])
 
@@ -384,6 +397,7 @@ export default function BookingForm() {
             setErrors((er) => ({ ...er, datetime: undefined }))
           }}
           takenSlots={takenSlots}
+          closedDays={closedDays}
         />
       </Field>
 

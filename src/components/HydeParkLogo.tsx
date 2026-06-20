@@ -6,7 +6,7 @@
 export function HydeParkMark({ className }: { className?: string }) {
   return (
     <img
-      src="/HYDEPARK_LOGO.png"
+      src="/hyde-park-new.png"
       alt="Hyde Park Developments"
       className={`object-contain ${className ?? ''}`}
     />

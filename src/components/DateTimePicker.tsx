@@ -10,17 +10,6 @@ const TIME_SLOTS = [
   '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM',
 ]
 
-// Fixed-date Egyptian national holidays (recur yearly), keyed as "MM-DD".
-const FIXED_HOLIDAYS: Record<string, string> = {
-  '01-07': 'عيد الميلاد المجيد',
-  '01-25': 'عيد الشرطة وثورة 25 يناير',
-  '04-25': 'عيد تحرير سيناء',
-  '05-01': 'عيد العمال',
-  '06-30': 'ذكرى ثورة 30 يونيو',
-  '07-23': 'عيد ثورة 23 يوليو',
-  '10-06': 'عيد القوات المسلحة',
-}
-
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
@@ -31,13 +20,6 @@ function toISO(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
-}
-
-// "MM-DD" for matching against the fixed-holiday list.
-function monthDay(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${m}-${day}`
 }
 
 function sameDay(a: Date | null, b: Date | null) {
@@ -56,6 +38,8 @@ type Props = {
   onSelectTime: (t: string) => void
   /** Booked slots keyed as "YYYY-MM-DD|10:00 AM" — these are disabled. */
   takenSlots?: Set<string>
+  /** Admin-declared closed days, "YYYY-MM-DD" -> reason — these are disabled. */
+  closedDays?: Map<string, string>
 }
 
 export default function DateTimePicker({
@@ -64,6 +48,7 @@ export default function DateTimePicker({
   selectedTime,
   onSelectTime,
   takenSlots,
+  closedDays,
 }: Props) {
   const today = startOfDay(new Date())
   const initial = selectedDate ?? today
@@ -150,7 +135,8 @@ export default function DateTimePicker({
             const cellDate = new Date(viewYear, viewMonth, day)
             const weekday = cellDate.getDay() // 5 = Friday, 6 = Saturday
             const isWeekend = weekday === 5 || weekday === 6
-            const holiday = FIXED_HOLIDAYS[monthDay(cellDate)]
+            // Admin-declared closed day (holiday), if any.
+            const holiday = closedDays?.get(toISO(cellDate))
             const isClosed = isWeekend || !!holiday
             const isPast = cellDate < today
             const isFull = fullDates.has(toISO(cellDate))

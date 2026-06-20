@@ -48,6 +48,15 @@ export async function fetchBookedSlots(): Promise<TakenSlot[]> {
   return res.json()
 }
 
+export type ClosedDay = { id: string; date: string; reason: string | null }
+
+/** Admin-declared closed days (holidays), so the calendar can disable them. */
+export async function fetchClosedDays(): Promise<ClosedDay[]> {
+  const res = await fetch(`${BASE}/api/closed-days`)
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
+
 export async function submitBooking(payload: BookingPayload) {
   const form = new FormData()
   form.append('unitCode', payload.unitCode)
