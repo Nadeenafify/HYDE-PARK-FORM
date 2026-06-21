@@ -67,7 +67,7 @@ function Label({ ar, en, icon }: { ar: string; en: string; icon: IconName }) {
 
 // Shared input styling, with border/ring colors swapped on validation state.
 const INPUT_BASE =
-  'w-full rounded-xl border bg-slate-50/60 px-4 py-3.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:bg-white focus:ring-4'
+  'w-full rounded-xl border bg-slate-50/60 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:bg-white focus:ring-4'
 const ERR_BORDER = 'border-red-300 focus:border-red-400 focus:ring-red-400/15'
 const OK_BORDER = 'border-slate-200 focus:border-[#222a4d] focus:ring-[#222a4d]/12'
 
@@ -218,7 +218,8 @@ export default function BookingForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="px-6 py-8 sm:px-10 sm:py-9">
+    <form onSubmit={handleSubmit} noValidate className="px-4 py-5 sm:px-6 sm:py-5">
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
       {/* Unit Number */}
       <Field label={<Label ar="رقم الوحدة" en="Unit Number" icon="unit" />} error={errors.unit}>
         <select
@@ -241,8 +242,25 @@ export default function BookingForm() {
         </select>
       </Field>
 
+      {/* Mobile Number */}
+      <Field label={<Label ar="رقم التلفون" en="Mobile Number" icon="phone" />} error={errors.mobile}>
+        <input
+          inputMode="numeric"
+          value={mobile}
+          aria-invalid={!!errors.mobile}
+          onChange={(e) => {
+            setMobile(e.target.value.replace(/[^0-9]/g, ''))
+            setErrors((er) => ({ ...er, mobile: undefined }))
+          }}
+          placeholder="00000000000"
+          dir="ltr"
+          className={fieldClass(!!errors.mobile, 'text-right')}
+        />
+      </Field>
+
       {/* Owner Name */}
       <Field
+        wide
         label={<Label ar="اسم مالك الوحدة" en="Owner Name" icon="user" />}
         error={errors.firstName || errors.lastName}
       >
@@ -274,24 +292,9 @@ export default function BookingForm() {
         </div>
       </Field>
 
-      {/* Mobile Number */}
-      <Field label={<Label ar="رقم التلفون" en="Mobile Number" icon="phone" />} error={errors.mobile}>
-        <input
-          inputMode="numeric"
-          value={mobile}
-          aria-invalid={!!errors.mobile}
-          onChange={(e) => {
-            setMobile(e.target.value.replace(/[^0-9]/g, ''))
-            setErrors((er) => ({ ...er, mobile: undefined }))
-          }}
-          placeholder="00000000000"
-          dir="ltr"
-          className={fieldClass(!!errors.mobile, 'text-right')}
-        />
-      </Field>
-
       {/* HPD Receipt upload */}
       <Field
+        wide
         label={
           <Label
             ar="صورة ايصال تعاقد الخدمه مع هايد بارك"
@@ -382,6 +385,7 @@ export default function BookingForm() {
 
       {/* Installation Date */}
       <Field
+        wide
         label={<Label ar="معاد التركيب" en="Installation Date" icon="calendar" />}
         error={errors.datetime}
       >
@@ -402,7 +406,7 @@ export default function BookingForm() {
       </Field>
 
       {/* Terms */}
-      <div className="mb-6 mt-2 rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
+      <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:col-span-2">
         <h3 className="mb-3 flex items-center gap-2 font-bold text-[#222a4d]">
           <span className="h-4 w-1 rounded-full bg-[#b58b5a]" />
           شروط تقديم وتفعيل الخدمة
@@ -428,7 +432,7 @@ export default function BookingForm() {
       </div>
 
       {/* Agreement */}
-      <div className="mb-8">
+      <div className="sm:col-span-2">
         <label className="flex cursor-pointer items-center gap-2.5">
           <input
             type="checkbox"
@@ -447,6 +451,7 @@ export default function BookingForm() {
       </div>
 
       {/* Submit */}
+      <div className="sm:col-span-2">
       {submitError && (
         <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
           <svg
@@ -486,6 +491,8 @@ export default function BookingForm() {
           )}
         </span>
       </button>
+      </div>
+      </div>
     </form>
   )
 }
@@ -494,16 +501,19 @@ function Field({
   label,
   hint,
   error,
+  wide,
   children,
 }: {
   label: React.ReactNode
   hint?: string
   error?: string
+  /** Span both columns of the form grid (full width). */
+  wide?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="mb-6">
-      <div className="mb-2.5">{label}</div>
+    <div className={wide ? 'sm:col-span-2' : ''}>
+      <div className="mb-2">{label}</div>
       {children}
       {hint && <p className="mt-1.5 text-xs text-[#b58b5a]">{hint}</p>}
       {error && <p className="mt-1.5 text-xs font-medium text-red-500">{error}</p>}

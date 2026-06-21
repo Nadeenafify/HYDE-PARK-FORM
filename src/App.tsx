@@ -14,7 +14,7 @@ const DOTS_LIGHT = {
 
 function App() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-linear-to-b from-[#f1f3fa] via-[#eaeef7] to-[#dfe4f0] px-4 py-10 sm:py-16">
+    <div className="relative min-h-screen overflow-hidden bg-linear-to-b from-[#f1f3fa] via-[#eaeef7] to-[#dfe4f0] px-4 py-5 sm:py-6">
       {/* Faint dot grid across the whole page */}
       <div aria-hidden className="pointer-events-none absolute inset-0" style={DOTS_DARK} />
 
@@ -25,16 +25,16 @@ function App() {
         <div className="absolute bottom-0 right-1/4 h-72 w-72 rounded-full bg-[#222a4d]/10 blur-3xl animate-[float-slow_13s_ease-in-out_infinite]" />
       </div>
 
-      <div className="relative mx-auto max-w-2xl">
+      <div className="relative mx-auto max-w-4xl">
         {/* Brand lockup */}
-        <div className="mb-8 flex justify-center animate-[rise_0.5s_ease-out]">
+        <div className="mb-12 mt-8 flex justify-center animate-[rise_0.5s_ease-out]">
           <HydeParkLogo />
         </div>
 
         {/* Glass form card */}
         <div className="overflow-hidden rounded-[28px] bg-white/90 shadow-[0_30px_80px_-30px_rgba(34,42,77,0.5)] ring-1 ring-white/60 backdrop-blur-xl animate-[rise_0.6s_ease-out]">
           {/* Branded hero */}
-          <div className="relative overflow-hidden bg-linear-to-br from-[#2c3766] via-[#222a4d] to-[#171d36] px-6 py-10 text-right sm:px-10 sm:py-12">
+          <div className="relative overflow-hidden bg-linear-to-br from-[#2c3766] via-[#222a4d] to-[#171d36] px-5 py-5 text-right sm:px-8 sm:py-6">
             {/* dot grid */}
             <div aria-hidden className="absolute inset-0" style={DOTS_LIGHT} />
             {/* inner glows */}
@@ -75,7 +75,7 @@ function App() {
           <BookingForm />
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-400">
+        <p className="mt-4 text-center text-xs text-slate-400">
           © Hyde Park Developments — جميع الحقوق محفوظة
         </p>
       </div>

@@ -14,6 +14,8 @@ export function HydeParkMark({ className }: { className?: string }) {
 }
 
 export default function HydeParkLogo() {
-  // The PNG already contains the wordmark, so render it on its own.
-  return <HydeParkMark className="h-40 w-auto sm:h-52" />
+  // The PNG is the full lockup, tightly cropped to the artwork (no padding).
+  // It's a wide lockup, so on mobile max-w-full caps the width and the height
+  // follows; the h-* values mainly drive the larger-screen size.
+  return <HydeParkMark className="h-16 w-auto max-w-full sm:h-24" />
 }

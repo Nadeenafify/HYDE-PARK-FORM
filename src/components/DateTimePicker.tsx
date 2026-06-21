@@ -98,7 +98,7 @@ export default function DateTimePicker({
   return (
     <div className="flex flex-col gap-6 md:flex-row" dir="ltr">
       {/* Calendar */}
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-3 flex items-center justify-between">
           <button
             type="button"
@@ -159,7 +159,7 @@ export default function DateTimePicker({
                   }
                   onClick={() => onSelectDate(cellDate)}
                   className={[
-                    'flex h-9 w-9 items-center justify-center rounded-full transition',
+                    'flex aspect-square w-full max-w-9 items-center justify-center rounded-full text-sm transition',
                     isSelected
                       ? 'bg-[#222a4d] font-semibold text-white shadow-sm'
                       : disabled
