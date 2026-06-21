@@ -15,5 +15,5 @@ export function HydeParkMark({ className }: { className?: string }) {
 
 export default function HydeParkLogo() {
   // The PNG already contains the wordmark, so render it on its own.
-  return <HydeParkMark className="h-28 w-auto sm:h-32" />
+  return <HydeParkMark className="h-40 w-auto sm:h-52" />
 }
