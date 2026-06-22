@@ -3,6 +3,21 @@
 // relative URLs. Override with VITE_API_BASE_URL for other environments.
 const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
+/** Error carrying the HTTP status so callers can branch (e.g. 409 → slot taken). */
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+// Shown when fetch itself rejects (offline / CORS / server down) — fetch never
+// reaches a Response in that case, so this is the message users actually see.
+const NETWORK_ERROR =
+  'تعذّر الاتصال بالخادم — تأكد من اتصالك بالإنترنت وحاول مرة أخرى'
+
 export type Unit = {
   id: string
   code: string
@@ -33,28 +48,35 @@ async function parseError(res: Response): Promise<string> {
   return `Request failed (${res.status})`
 }
 
+/** fetch + uniform error handling: network failure → ApiError(0), non-2xx →
+ * ApiError(status, serverMessage). Returns the Response on success. */
+async function request(path: string, init?: RequestInit): Promise<Response> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, init)
+  } catch {
+    throw new ApiError(0, NETWORK_ERROR)
+  }
+  if (!res.ok) throw new ApiError(res.status, await parseError(res))
+  return res
+}
+
 export async function fetchUnits(): Promise<Unit[]> {
-  const res = await fetch(`${BASE}/api/units`)
-  if (!res.ok) throw new Error(await parseError(res))
-  return res.json()
+  return (await request('/api/units')).json()
 }
 
 export type TakenSlot = { date: string; time: string }
 
 /** Installation slots already booked (date + time), so the form can hide them. */
 export async function fetchBookedSlots(): Promise<TakenSlot[]> {
-  const res = await fetch(`${BASE}/api/bookings/availability`)
-  if (!res.ok) throw new Error(await parseError(res))
-  return res.json()
+  return (await request('/api/bookings/availability')).json()
 }
 
 export type ClosedDay = { id: string; date: string; reason: string | null }
 
 /** Admin-declared closed days (holidays), so the calendar can disable them. */
 export async function fetchClosedDays(): Promise<ClosedDay[]> {
-  const res = await fetch(`${BASE}/api/closed-days`)
-  if (!res.ok) throw new Error(await parseError(res))
-  return res.json()
+  return (await request('/api/closed-days')).json()
 }
 
 export async function submitBooking(payload: BookingPayload) {
@@ -68,10 +90,6 @@ export async function submitBooking(payload: BookingPayload) {
   form.append('agreedToTerms', String(payload.agreedToTerms))
   form.append('receipt', payload.receipt)
 
-  const res = await fetch(`${BASE}/api/bookings`, {
-    method: 'POST',
-    body: form,
-  })
-  if (!res.ok) throw new Error(await parseError(res))
+  const res = await request('/api/bookings', { method: 'POST', body: form })
   return res.json()
 }

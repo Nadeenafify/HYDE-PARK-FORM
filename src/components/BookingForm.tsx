@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import DateTimePicker from './DateTimePicker'
-import { fetchBookedSlots, fetchClosedDays, fetchUnits, submitBooking } from '../api'
+import { ApiError, fetchBookedSlots, fetchClosedDays, fetchUnits, submitBooking } from '../api'
 
 // Fallback list used only if the backend can't be reached. The live list is
 // loaded from GET /api/units on mount.
@@ -18,12 +18,71 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-type Errors = Partial<
-  Record<
-    'unit' | 'firstName' | 'lastName' | 'mobile' | 'receipt' | 'datetime' | 'agree',
-    string
-  >
->
+// Validation rules kept in lock-step with the backend (create-booking.dto.ts /
+// multer.config.ts) so the client surfaces problems before the round-trip while
+// the server stays the source of truth.
+const NAME_MAX = 80
+const MOBILE_RE = /^[0-9]{8,15}$/
+const MAX_RECEIPT_BYTES = 10 * 1024 * 1024 // 10 MB
+const ACCEPTED_RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+
+type FieldName = 'unit' | 'firstName' | 'lastName' | 'mobile' | 'receipt' | 'datetime' | 'agree'
+
+type Errors = Partial<Record<FieldName, string>>
+
+type FieldValues = {
+  unit: string
+  firstName: string
+  lastName: string
+  mobile: string
+  receipt: File | null
+  date: Date | null
+  time: string | null
+  agree: boolean
+}
+
+// Order errors are surfaced / focused in — matches the visual top-to-bottom flow.
+const FIELD_ORDER: FieldName[] = [
+  'unit',
+  'mobile',
+  'firstName',
+  'lastName',
+  'receipt',
+  'datetime',
+  'agree',
+]
+
+// Pure, single-field validator reused by blur, live re-validation, and submit.
+function fieldError(field: FieldName, v: FieldValues): string | undefined {
+  switch (field) {
+    case 'unit':
+      return v.unit ? undefined : 'برجاء اختيار رقم الوحدة'
+    case 'firstName':
+    case 'lastName': {
+      const name = (field === 'firstName' ? v.firstName : v.lastName).trim()
+      if (!name) return 'مطلوب'
+      if (name.length > NAME_MAX) return `الاسم يجب ألا يتجاوز ${NAME_MAX} حرفاً`
+      return undefined
+    }
+    case 'mobile':
+      return MOBILE_RE.test(v.mobile) ? undefined : 'برجاء إدخال رقم تلفون صحيح'
+    case 'receipt':
+      return v.receipt ? undefined : 'برجاء ارفاق صورة ايصال الدفع'
+    case 'datetime':
+      return v.date && v.time ? undefined : 'برجاء اختيار معاد التركيب'
+    case 'agree':
+      return v.agree ? undefined : 'يجب الموافقة على شروط تقديم الخدمة'
+  }
+}
+
+function validateAll(v: FieldValues): Errors {
+  const next: Errors = {}
+  for (const field of FIELD_ORDER) {
+    const msg = fieldError(field, v)
+    if (msg) next[field] = msg
+  }
+  return next
+}
 
 /* ------------------------------------------------------------------ icons -- */
 
@@ -75,6 +134,186 @@ function fieldClass(hasError: boolean, extra = '') {
   return `${INPUT_BASE} ${hasError ? ERR_BORDER : OK_BORDER} ${extra}`.trim()
 }
 
+/* -------------------------------------------------------- searchable select -- */
+
+// Type-to-filter combobox that replaces the native <select> for the unit list,
+// which can grow long. Fully keyboard-navigable. Selecting an option keeps the
+// input focused — option mousedown is prevented so the click lands before the
+// input would otherwise blur and close the menu. Closing/validation happen on
+// blur, matching the rest of the form.
+function SearchableSelect({
+  value,
+  options,
+  onChange,
+  onBlur,
+  hasError,
+  inputRef,
+  describedBy,
+  placeholder = 'Please select',
+}: {
+  value: string
+  options: string[]
+  onChange: (value: string) => void
+  onBlur: () => void
+  hasError: boolean
+  /** Forwarded to the inner input so a failed submit can focus this field. */
+  inputRef: (el: HTMLInputElement | null) => void
+  describedBy?: string
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(0)
+  const optionRefs = useRef<(HTMLLIElement | null)[]>([])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return q ? options.filter((o) => o.toLowerCase().includes(q)) : options
+  }, [options, query])
+
+  // Keep the highlighted option in view while navigating with the keyboard.
+  useEffect(() => {
+    if (open) optionRefs.current[active]?.scrollIntoView({ block: 'nearest' })
+  }, [active, open])
+
+  function openMenu() {
+    if (open) return
+    setQuery('')
+    const idx = options.indexOf(value)
+    setActive(idx >= 0 ? idx : 0)
+    setOpen(true)
+  }
+
+  function choose(option: string) {
+    onChange(option)
+    setOpen(false)
+    setQuery('')
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        if (!open) return openMenu()
+        setActive((a) => Math.min(a + 1, filtered.length - 1))
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        if (!open) return openMenu()
+        setActive((a) => Math.max(a - 1, 0))
+        break
+      case 'Enter':
+        if (open) {
+          e.preventDefault()
+          const pick = filtered[active]
+          if (pick) choose(pick)
+        }
+        break
+      case 'Escape':
+        if (open) {
+          e.preventDefault()
+          setOpen(false)
+          setQuery('')
+        }
+        break
+    }
+  }
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="unit-listbox"
+        aria-autocomplete="list"
+        aria-activedescendant={open && filtered[active] ? `unit-opt-${active}` : undefined}
+        aria-invalid={hasError}
+        aria-describedby={describedBy}
+        autoComplete="off"
+        value={open ? query : value}
+        placeholder={placeholder}
+        onFocus={openMenu}
+        onClick={openMenu}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setActive(0)
+          setOpen(true)
+        }}
+        onKeyDown={handleKeyDown}
+        onBlur={() => {
+          setOpen(false)
+          setQuery('')
+          onBlur()
+        }}
+        className={fieldClass(hasError, 'cursor-text pe-10')}
+      />
+      <svg
+        aria-hidden
+        className={`pointer-events-none absolute inset-y-0 end-3 my-auto h-4 w-4 text-slate-400 transition-transform ${
+          open ? 'rotate-180' : ''
+        }`}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+      </svg>
+
+      {open && (
+        <ul
+          id="unit-listbox"
+          role="listbox"
+          className="absolute z-20 mt-1.5 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg shadow-slate-900/5"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-4 py-2.5 text-sm text-slate-400">لا توجد نتائج مطابقة</li>
+          ) : (
+            filtered.map((option, i) => {
+              const selected = option === value
+              const isActive = i === active
+              return (
+                <li
+                  key={option}
+                  id={`unit-opt-${i}`}
+                  role="option"
+                  aria-selected={selected}
+                  ref={(el) => {
+                    optionRefs.current[i] = el
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => choose(option)}
+                  className={[
+                    'flex cursor-pointer items-center justify-between px-4 py-2.5 text-sm transition',
+                    isActive ? 'bg-[#222a4d]/8 text-[#222a4d]' : 'text-slate-700',
+                    selected ? 'font-semibold' : '',
+                  ].join(' ')}
+                >
+                  <span>{option}</span>
+                  {selected && (
+                    <svg
+                      className="h-4 w-4 text-[#b58b5a]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                  )}
+                </li>
+              )
+            })
+          )}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function BookingForm() {
   const [unit, setUnit] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -96,6 +335,35 @@ export default function BookingForm() {
   const [closedDays, setClosedDays] = useState<Map<string, string>>(new Map())
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Maps each field to its focusable element so a failed submit can jump to the
+  // first problem.
+  const fieldRefs = useRef<Partial<Record<FieldName, HTMLElement | null>>>({})
+
+  // Snapshot of the current field values for the validators.
+  const values: FieldValues = { unit, firstName, lastName, mobile, receipt, date, time, agree }
+
+  // Show a field's error on blur (first feedback for that field).
+  function handleBlur(field: FieldName) {
+    setErrors((er) => ({ ...er, [field]: fieldError(field, values) }))
+  }
+
+  // Re-validate a single field as the user types, but only once it already has
+  // an error showing — so the message clears the moment the input becomes valid
+  // without nagging mid-typing.
+  function liveValidate(field: FieldName, override: Partial<FieldValues>) {
+    setErrors((er) =>
+      er[field] ? { ...er, [field]: fieldError(field, { ...values, ...override }) } : er,
+    )
+  }
+
+  function focusFirstError(errs: Errors) {
+    const first = FIELD_ORDER.find((f) => errs[f])
+    if (!first) return
+    const el = fieldRefs.current[first]
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.focus({ preventScroll: true })
+  }
 
   // Load the live unit list from the backend; keep the fallback on failure.
   useEffect(() => {
@@ -128,33 +396,41 @@ export default function BookingForm() {
       })
   }, [])
 
+  // Validate the receipt against the same rules the server enforces (type +
+  // size) so an oversized or wrong-format file fails instantly instead of after
+  // a 10 MB round-trip. A rejected file keeps any previously valid selection.
   function handleFile(files: FileList | null) {
-    if (files && files.length > 0) {
-      setReceipt(files[0])
-      setErrors((e) => ({ ...e, receipt: undefined }))
+    if (!files || files.length === 0) return
+    const file = files[0]
+    if (!ACCEPTED_RECEIPT_TYPES.includes(file.type)) {
+      setErrors((e) => ({
+        ...e,
+        receipt: 'صيغة الملف غير مدعومة — برجاء رفع صورة JPG أو PNG أو WEBP أو ملف PDF',
+      }))
+      return
     }
-  }
-
-  function validate(): Errors {
-    const next: Errors = {}
-    if (!unit) next.unit = 'برجاء اختيار رقم الوحدة'
-    if (!firstName.trim()) next.firstName = 'مطلوب'
-    if (!lastName.trim()) next.lastName = 'مطلوب'
-    if (!/^[0-9]{8,15}$/.test(mobile)) next.mobile = 'برجاء إدخال رقم تلفون صحيح'
-    if (!receipt) next.receipt = 'برجاء ارفاق صورة ايصال الدفع'
-    if (!date || !time) next.datetime = 'برجاء اختيار معاد التركيب'
-    if (!agree) next.agree = 'يجب الموافقة على شروط تقديم الخدمة'
-    return next
+    if (file.size > MAX_RECEIPT_BYTES) {
+      setErrors((e) => ({
+        ...e,
+        receipt: 'حجم الملف كبير جداً — الحد الأقصى ١٠ ميجابايت',
+      }))
+      return
+    }
+    setReceipt(file)
+    setErrors((e) => ({ ...e, receipt: undefined }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitError(null)
-    const next = validate()
+    const next = validateAll(values)
     setErrors(next)
-    if (Object.keys(next).length > 0) return
+    if (Object.keys(next).length > 0) {
+      focusFirstError(next)
+      return
+    }
 
-    // validate() guarantees these are set by this point.
+    // validateAll() guarantees these are set by this point.
     setSubmitting(true)
     try {
       await submitBooking({
@@ -169,20 +445,24 @@ export default function BookingForm() {
       })
       setSubmitted(true)
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : 'تعذّر إرسال الطلب، حاول مرة أخرى',
-      )
-      // The slot may have just been taken by someone else — refresh availability
-      // and clear the chosen time if it is no longer free.
-      fetchBookedSlots()
-        .then((slots) => {
-          const set = new Set(slots.map((s) => `${s.date}|${s.time}`))
-          setTakenSlots(set)
-          if (date && time && set.has(`${toISODate(date)}|${time}`)) {
-            setTime(null)
-          }
-        })
-        .catch(() => {})
+      if (err instanceof ApiError && err.status === 409) {
+        // Someone booked this slot between page load and submit. Show a clear
+        // localized message, refresh availability, and drop the now-taken time.
+        setSubmitError('هذا الموعد لم يعد متاحاً — تم حجزه للتو، برجاء اختيار موعد آخر')
+        fetchBookedSlots()
+          .then((slots) => {
+            const set = new Set(slots.map((s) => `${s.date}|${s.time}`))
+            setTakenSlots(set)
+            if (date && time && set.has(`${toISODate(date)}|${time}`)) {
+              setTime(null)
+            }
+          })
+          .catch(() => {})
+      } else {
+        setSubmitError(
+          err instanceof Error ? err.message : 'تعذّر إرسال الطلب، حاول مرة أخرى',
+        )
+      }
     } finally {
       setSubmitting(false)
     }
@@ -221,37 +501,50 @@ export default function BookingForm() {
     <form onSubmit={handleSubmit} noValidate className="px-4 py-5 sm:px-6 sm:py-5">
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
       {/* Unit Number */}
-      <Field label={<Label ar="رقم الوحدة" en="Unit Number" icon="unit" />} error={errors.unit}>
-        <select
+      <Field
+        label={<Label ar="رقم الوحدة" en="Unit Number" icon="unit" />}
+        error={errors.unit}
+        errorId="unit-error"
+      >
+        <SearchableSelect
+          inputRef={(el) => {
+            fieldRefs.current.unit = el
+          }}
           value={unit}
-          aria-invalid={!!errors.unit}
-          onChange={(e) => {
-            setUnit(e.target.value)
+          options={units}
+          hasError={!!errors.unit}
+          describedBy={errors.unit ? 'unit-error' : undefined}
+          onChange={(v) => {
+            setUnit(v)
             setErrors((er) => ({ ...er, unit: undefined }))
           }}
-          className={fieldClass(!!errors.unit, 'cursor-pointer')}
-        >
-          <option value="" disabled>
-            Please select
-          </option>
-          {units.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
+          onBlur={() => handleBlur('unit')}
+        />
       </Field>
 
       {/* Mobile Number */}
-      <Field label={<Label ar="رقم التلفون" en="Mobile Number" icon="phone" />} error={errors.mobile}>
+      <Field
+        label={<Label ar="رقم التلفون" en="Mobile Number" icon="phone" />}
+        error={errors.mobile}
+        errorId="mobile-error"
+      >
         <input
+          ref={(el) => {
+            fieldRefs.current.mobile = el
+          }}
           inputMode="numeric"
+          maxLength={15}
           value={mobile}
           aria-invalid={!!errors.mobile}
+          aria-describedby={errors.mobile ? 'mobile-error' : undefined}
           onChange={(e) => {
-            setMobile(e.target.value.replace(/[^0-9]/g, ''))
-            setErrors((er) => ({ ...er, mobile: undefined }))
+            // Strip non-digits and hard-cap at 15 (the server max) so the field
+            // can't run away even on paste.
+            const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 15)
+            setMobile(digits)
+            liveValidate('mobile', { mobile: digits })
           }}
+          onBlur={() => handleBlur('mobile')}
           placeholder="00000000000"
           dir="ltr"
           className={fieldClass(!!errors.mobile, 'text-right')}
@@ -259,35 +552,57 @@ export default function BookingForm() {
       </Field>
 
       {/* Owner Name */}
-      <Field
-        wide
-        label={<Label ar="اسم مالك الوحدة" en="Owner Name" icon="user" />}
-        error={errors.firstName || errors.lastName}
-      >
+      <Field wide label={<Label ar="اسم مالك الوحدة" en="Owner Name" icon="user" />}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <input
-              value={firstName}
-              aria-invalid={!!errors.firstName}
-              onChange={(e) => {
-                setFirstName(e.target.value)
-                setErrors((er) => ({ ...er, firstName: undefined }))
+              ref={(el) => {
+                fieldRefs.current.firstName = el
               }}
+              value={firstName}
+              maxLength={NAME_MAX}
+              aria-invalid={!!errors.firstName}
+              aria-describedby={errors.firstName ? 'firstName-error' : undefined}
+              onChange={(e) => {
+                const v = e.target.value
+                setFirstName(v)
+                liveValidate('firstName', { firstName: v })
+              }}
+              onBlur={() => handleBlur('firstName')}
               className={fieldClass(!!errors.firstName)}
             />
-            <span className="mt-1.5 block text-xs text-[#b58b5a]">الاسم الاول</span>
+            {errors.firstName ? (
+              <span id="firstName-error" role="alert" className="mt-1.5 block text-xs font-medium text-red-500">
+                {errors.firstName}
+              </span>
+            ) : (
+              <span className="mt-1.5 block text-xs text-[#b58b5a]">الاسم الاول</span>
+            )}
           </div>
           <div>
             <input
-              value={lastName}
-              aria-invalid={!!errors.lastName}
-              onChange={(e) => {
-                setLastName(e.target.value)
-                setErrors((er) => ({ ...er, lastName: undefined }))
+              ref={(el) => {
+                fieldRefs.current.lastName = el
               }}
+              value={lastName}
+              maxLength={NAME_MAX}
+              aria-invalid={!!errors.lastName}
+              aria-describedby={errors.lastName ? 'lastName-error' : undefined}
+              onChange={(e) => {
+                const v = e.target.value
+                setLastName(v)
+                liveValidate('lastName', { lastName: v })
+              }}
+              onBlur={() => handleBlur('lastName')}
               className={fieldClass(!!errors.lastName)}
             />
-            <span className="mt-1.5 block text-xs text-[#b58b5a]">الاسم الاخر</span>
+            {errors.lastName ? (
+              <span id="lastName-error" role="alert" className="mt-1.5 block text-xs font-medium text-red-500">
+                {errors.lastName}
+              </span>
+            ) : (
+              <span className="mt-1.5 block text-xs text-[#b58b5a]">الاسم الاخر</span>
+            )}
           </div>
         </div>
       </Field>
@@ -303,9 +618,23 @@ export default function BookingForm() {
           />
         }
         error={errors.receipt}
+        errorId="receipt-error"
         hint="برجاء ارفاق صوره ايصال الدفع"
       >
         <div
+          ref={(el) => {
+            fieldRefs.current.receipt = el
+          }}
+          role="button"
+          tabIndex={0}
+          aria-invalid={!!errors.receipt}
+          aria-describedby={errors.receipt ? 'receipt-error' : undefined}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              fileInputRef.current?.click()
+            }
+          }}
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => {
             e.preventDefault()
@@ -376,7 +705,7 @@ export default function BookingForm() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,.pdf"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
             className="hidden"
             onChange={(e) => handleFile(e.target.files)}
           />
@@ -388,21 +717,31 @@ export default function BookingForm() {
         wide
         label={<Label ar="معاد التركيب" en="Installation Date" icon="calendar" />}
         error={errors.datetime}
+        errorId="datetime-error"
       >
-        <DateTimePicker
-          selectedDate={date}
-          onSelectDate={(d) => {
-            setDate(d)
-            setErrors((er) => ({ ...er, datetime: undefined }))
+        <div
+          ref={(el) => {
+            fieldRefs.current.datetime = el
           }}
-          selectedTime={time}
-          onSelectTime={(t) => {
-            setTime(t)
-            setErrors((er) => ({ ...er, datetime: undefined }))
-          }}
-          takenSlots={takenSlots}
-          closedDays={closedDays}
-        />
+          tabIndex={-1}
+          aria-describedby={errors.datetime ? 'datetime-error' : undefined}
+          className="outline-none"
+        >
+          <DateTimePicker
+            selectedDate={date}
+            onSelectDate={(d) => {
+              setDate(d)
+              setErrors((er) => ({ ...er, datetime: fieldError('datetime', { ...values, date: d }) }))
+            }}
+            selectedTime={time}
+            onSelectTime={(t) => {
+              setTime(t)
+              setErrors((er) => ({ ...er, datetime: fieldError('datetime', { ...values, time: t }) }))
+            }}
+            takenSlots={takenSlots}
+            closedDays={closedDays}
+          />
+        </div>
       </Field>
 
       {/* Terms */}
@@ -435,11 +774,16 @@ export default function BookingForm() {
       <div className="sm:col-span-2">
         <label className="flex cursor-pointer items-center gap-2.5">
           <input
+            ref={(el) => {
+              fieldRefs.current.agree = el
+            }}
             type="checkbox"
             checked={agree}
+            aria-invalid={!!errors.agree}
+            aria-describedby={errors.agree ? 'agree-error' : undefined}
             onChange={(e) => {
               setAgree(e.target.checked)
-              setErrors((er) => ({ ...er, agree: undefined }))
+              setErrors((er) => ({ ...er, agree: e.target.checked ? undefined : er.agree }))
             }}
             className="h-4 w-4 rounded border-slate-300 text-[#222a4d] focus:ring-[#222a4d]/30"
           />
@@ -447,7 +791,11 @@ export default function BookingForm() {
             <span className="text-[#b58b5a]">*</span> اوافق على شروط تقديم الخدمة
           </span>
         </label>
-        {errors.agree && <p className="mt-1.5 text-xs font-medium text-red-500">{errors.agree}</p>}
+        {errors.agree && (
+          <p id="agree-error" role="alert" className="mt-1.5 text-xs font-medium text-red-500">
+            {errors.agree}
+          </p>
+        )}
       </div>
 
       {/* Submit */}
@@ -501,12 +849,15 @@ function Field({
   label,
   hint,
   error,
+  errorId,
   wide,
   children,
 }: {
   label: React.ReactNode
   hint?: string
   error?: string
+  /** id for the error message, so the input can reference it via aria-describedby. */
+  errorId?: string
   /** Span both columns of the form grid (full width). */
   wide?: boolean
   children: React.ReactNode
@@ -516,7 +867,11 @@ function Field({
       <div className="mb-2">{label}</div>
       {children}
       {hint && <p className="mt-1.5 text-xs text-[#b58b5a]">{hint}</p>}
-      {error && <p className="mt-1.5 text-xs font-medium text-red-500">{error}</p>}
+      {error && (
+        <p id={errorId} role="alert" className="mt-1.5 text-xs font-medium text-red-500">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

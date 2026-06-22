@@ -5,8 +5,12 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  // Where the dev server forwards "/api" requests (your backend).
-  const target = env.VITE_API_BASE_URL || 'http://localhost:3000'
+  // Where the dev server forwards "/api" requests (your backend). This is a
+  // dev-only proxy target; keep it separate from VITE_API_BASE_URL (which is
+  // baked into the client bundle), so pointing the proxy somewhere doesn't also
+  // change the production fetch base. Falls back to the old var for compat.
+  const target =
+    env.VITE_API_PROXY || env.VITE_API_BASE_URL || 'http://localhost:3000'
 
   // When the backend isn't running, http-proxy floods the terminal with an
   // ECONNREFUSED AggregateError stack dump for every single request. Handle the

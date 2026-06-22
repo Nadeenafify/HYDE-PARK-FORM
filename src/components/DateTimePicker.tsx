@@ -31,6 +31,18 @@ function sameDay(a: Date | null, b: Date | null) {
   )
 }
 
+// Minutes since midnight for a slot label like "1:00 PM" — used to hide slots
+// whose start time has already passed when today is selected.
+function slotMinutes(slot: string): number {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(slot.trim())
+  if (!m) return 0
+  let h = parseInt(m[1], 10)
+  const min = parseInt(m[2], 10)
+  if (h === 12) h = 0
+  if (m[3].toUpperCase() === 'PM') h += 12
+  return h * 60 + min
+}
+
 type Props = {
   selectedDate: Date | null
   onSelectDate: (d: Date) => void
@@ -94,6 +106,13 @@ export default function DateTimePicker({
     : 'Select a date'
 
   const selectedISO = selectedDate ? toISO(selectedDate) : null
+
+  // When today is selected, slots whose start time has already passed are dead.
+  const selectedIsToday = sameDay(selectedDate, today)
+  const nowMinutes = (() => {
+    const n = new Date()
+    return n.getHours() * 60 + n.getMinutes()
+  })()
 
   return (
     <div className="flex flex-col gap-6 md:flex-row" dir="ltr">
@@ -191,28 +210,38 @@ export default function DateTimePicker({
             const taken = selectedISO
               ? (takenSlots?.has(`${selectedISO}|${slot}`) ?? false)
               : false
+            const past = selectedIsToday && slotMinutes(slot) <= nowMinutes
             const active = selectedTime === slot
-            const disabled = !selectedDate || taken
+            const disabled = !selectedDate || taken || past
             return (
               <button
                 key={slot}
                 type="button"
                 disabled={disabled}
                 onClick={() => onSelectTime(slot)}
-                aria-label={taken ? `${slot} — محجوز` : slot}
+                aria-label={
+                  taken ? `${slot} — محجوز` : past ? `${slot} — فات الوقت` : slot
+                }
                 className={[
                   'flex h-12 flex-col items-center justify-center rounded-xl border text-sm font-medium transition',
                   taken
                     ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
-                    : active
-                      ? 'border-[#222a4d] bg-[#222a4d] text-white shadow-sm'
-                      : 'border-slate-200 text-[#2d3e50] hover:border-[#222a4d]/40 hover:bg-[#222a4d]/5',
-                  !selectedDate && !taken ? 'cursor-not-allowed opacity-50' : '',
+                    : past
+                      ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300 line-through'
+                      : active
+                        ? 'border-[#222a4d] bg-[#222a4d] text-white shadow-sm'
+                        : 'border-slate-200 text-[#2d3e50] hover:border-[#222a4d]/40 hover:bg-[#222a4d]/5',
+                  !selectedDate && !taken && !past ? 'cursor-not-allowed opacity-50' : '',
                 ].join(' ')}
               >
                 <span className={taken ? 'text-[13px] leading-none' : 'leading-none'}>
                   {slot}
                 </span>
+                {past && !taken && (
+                  <span className="mt-0.5 text-[10px] font-medium text-slate-400">
+                    فات الوقت
+                  </span>
+                )}
                 {taken && (
                   <span className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-rose-400">
                     <svg
