@@ -2,14 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DateTimePicker from './DateTimePicker'
 import { ApiError, fetchBookedSlots, fetchClosedDays, fetchUnits, submitBooking } from '../api'
 
-// Fallback list used only if the backend can't be reached. The live list is
-// loaded from GET /api/units on mount.
-const UNIT_OPTIONS = [
-  'A-101', 'A-102', 'A-201', 'A-202',
-  'B-101', 'B-102', 'B-201', 'B-202',
-  'Villa-01', 'Villa-02', 'Villa-03',
-]
-
 // Format a Date as a local YYYY-MM-DD string (avoids a UTC off-by-one).
 function toISODate(d: Date): string {
   const y = d.getFullYear()
@@ -269,7 +261,9 @@ function SearchableSelect({
           className="absolute z-20 mt-1.5 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg shadow-slate-900/5"
         >
           {filtered.length === 0 ? (
-            <li className="px-4 py-2.5 text-sm text-slate-400">لا توجد نتائج مطابقة</li>
+            <li className="px-4 py-2.5 text-sm text-slate-400">
+              {options.length === 0 ? 'لا توجد وحدات متاحة' : 'لا توجد نتائج مطابقة'}
+            </li>
           ) : (
             filtered.map((option, i) => {
               const selected = option === value
@@ -326,7 +320,9 @@ export default function BookingForm() {
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
   const [submitted, setSubmitted] = useState(false)
-  const [units, setUnits] = useState<string[]>(UNIT_OPTIONS)
+  // Units come only from the backend (the ones an admin added) — no hardcoded list.
+  const [units, setUnits] = useState<string[]>([])
+  const [unitsLoading, setUnitsLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   // Already-booked installation slots, keyed as "YYYY-MM-DD|10:00 AM".
@@ -365,15 +361,14 @@ export default function BookingForm() {
     el.focus({ preventScroll: true })
   }
 
-  // Load the live unit list from the backend; keep the fallback on failure.
+  // Load the unit list from the backend — the units an admin has added. There is
+  // no hardcoded fallback: if none come back (empty list or backend offline) the
+  // dropdown shows an empty state and no unit can be picked until an admin adds one.
   useEffect(() => {
     fetchUnits()
-      .then((list) => {
-        if (list.length > 0) setUnits(list.map((u) => u.code))
-      })
-      .catch(() => {
-        /* backend offline — keep UNIT_OPTIONS fallback */
-      })
+      .then((list) => setUnits(list.map((u) => u.code)))
+      .catch(() => setUnits([]))
+      .finally(() => setUnitsLoading(false))
   }, [])
 
   // Load already-booked slots so taken date/time options are disabled.
@@ -514,6 +509,13 @@ export default function BookingForm() {
           options={units}
           hasError={!!errors.unit}
           describedBy={errors.unit ? 'unit-error' : undefined}
+          placeholder={
+            unitsLoading
+              ? 'جارٍ تحميل الوحدات…'
+              : units.length === 0
+                ? 'لا توجد وحدات متاحة'
+                : 'اختر رقم الوحدة'
+          }
           onChange={(v) => {
             setUnit(v)
             setErrors((er) => ({ ...er, unit: undefined }))
