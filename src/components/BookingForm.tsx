@@ -530,7 +530,7 @@ export default function BookingForm() {
           tabIndex={-1}
           role="radiogroup"
           aria-describedby={errors.unitType ? 'unitType-error' : undefined}
-          className="grid grid-cols-2 gap-3 outline-none"
+          className="grid grid-cols-1 gap-3 outline-none sm:grid-cols-2"
         >
           {(
             [
