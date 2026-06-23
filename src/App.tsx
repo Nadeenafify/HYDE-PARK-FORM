@@ -61,7 +61,7 @@ function App() {
                 Hyde Park Developments
               </span>
               <h1 className="text-[28px] font-bold leading-tight text-white sm:text-[34px]">
-                حجز خدمة HPD Home Connect
+                حجز خدمة HPD Triple Play
               </h1>
               <p className="mt-2.5 text-sm leading-relaxed text-white/60">
                 أكمل النموذج بالتفاصيل المطلوبة لحجز موعد تركيب الخدمة.

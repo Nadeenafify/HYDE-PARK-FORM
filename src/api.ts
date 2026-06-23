@@ -18,19 +18,15 @@ export class ApiError extends Error {
 const NETWORK_ERROR =
   'تعذّر الاتصال بالخادم — تأكد من اتصالك بالإنترنت وحاول مرة أخرى'
 
-export type UnitType = 'commercial' | 'residential'
-
 export type Unit = {
   id: string
   code: string
-  type: UnitType
   description: string | null
   isActive: boolean
 }
 
 export type BookingPayload = {
   unitCode: string
-  unitType: UnitType
   firstName: string
   lastName: string
   mobile: string
@@ -93,7 +89,6 @@ export async function fetchSchedule(): Promise<Schedule> {
 export async function submitBooking(payload: BookingPayload) {
   const form = new FormData()
   form.append('unitCode', payload.unitCode)
-  form.append('unitType', payload.unitType)
   form.append('firstName', payload.firstName)
   form.append('lastName', payload.lastName)
   form.append('mobile', payload.mobile)

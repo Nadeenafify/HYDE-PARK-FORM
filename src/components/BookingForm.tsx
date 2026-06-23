@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DateTimePicker from './DateTimePicker'
 import { ApiError, fetchBookedSlots, fetchSchedule, fetchUnits, submitBooking } from '../api'
-import type { Schedule, Unit, UnitType } from '../api'
+import type { Schedule, Unit } from '../api'
 
 // Format a Date as a local YYYY-MM-DD string (avoids a UTC off-by-one).
 function toISODate(d: Date): string {
@@ -15,12 +15,11 @@ function toISODate(d: Date): string {
 // multer.config.ts) so the client surfaces problems before the round-trip while
 // the server stays the source of truth.
 const NAME_MAX = 80
-const MOBILE_RE = /^[0-9]{8,15}$/
+const MOBILE_RE = /^[0-9]{11}$/
 const MAX_RECEIPT_BYTES = 10 * 1024 * 1024 // 10 MB
 const ACCEPTED_RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 
 type FieldName =
-  | 'unitType'
   | 'unit'
   | 'firstName'
   | 'lastName'
@@ -32,7 +31,6 @@ type FieldName =
 type Errors = Partial<Record<FieldName, string>>
 
 type FieldValues = {
-  unitType: UnitType | ''
   unit: string
   firstName: string
   lastName: string
@@ -45,7 +43,6 @@ type FieldValues = {
 
 // Order errors are surfaced / focused in — matches the visual top-to-bottom flow.
 const FIELD_ORDER: FieldName[] = [
-  'unitType',
   'unit',
   'mobile',
   'firstName',
@@ -58,8 +55,6 @@ const FIELD_ORDER: FieldName[] = [
 // Pure, single-field validator reused by blur, live re-validation, and submit.
 function fieldError(field: FieldName, v: FieldValues): string | undefined {
   switch (field) {
-    case 'unitType':
-      return v.unitType ? undefined : 'برجاء اختيار نوع الوحدة'
     case 'unit':
       return v.unit ? undefined : 'برجاء اختيار رقم الوحدة'
     case 'firstName':
@@ -70,7 +65,9 @@ function fieldError(field: FieldName, v: FieldValues): string | undefined {
       return undefined
     }
     case 'mobile':
-      return MOBILE_RE.test(v.mobile) ? undefined : 'برجاء إدخال رقم تلفون صحيح'
+      return MOBILE_RE.test(v.mobile)
+        ? undefined
+        : 'برجاء إدخال رقم تلفون صحيح مكوّن من 11 رقم'
     case 'receipt':
       return v.receipt ? undefined : 'برجاء ارفاق صورة ايصال الدفع'
     case 'datetime':
@@ -322,7 +319,6 @@ function SearchableSelect({
 }
 
 export default function BookingForm() {
-  const [unitType, setUnitType] = useState<UnitType | ''>('')
   const [unit, setUnit] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -350,14 +346,10 @@ export default function BookingForm() {
   const fieldRefs = useRef<Partial<Record<FieldName, HTMLElement | null>>>({})
 
   // Snapshot of the current field values for the validators.
-  const values: FieldValues = { unitType, unit, firstName, lastName, mobile, receipt, date, time, agree }
+  const values: FieldValues = { unit, firstName, lastName, mobile, receipt, date, time, agree }
 
-  // Unit codes available for the chosen type — the dropdown only offers units
-  // matching the selected commercial/residential category.
-  const unitOptions = useMemo(
-    () => units.filter((u) => u.type === unitType).map((u) => u.code),
-    [units, unitType],
-  )
+  // Unit codes offered by the dropdown — all units returned by the backend.
+  const unitOptions = useMemo(() => units.map((u) => u.code), [units])
 
   // Show a field's error on blur (first feedback for that field).
   function handleBlur(field: FieldName) {
@@ -449,8 +441,6 @@ export default function BookingForm() {
     try {
       await submitBooking({
         unitCode: unit,
-        // validateAll() guarantees unitType is set by this point.
-        unitType: unitType as UnitType,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         mobile,
@@ -516,57 +506,6 @@ export default function BookingForm() {
   return (
     <form onSubmit={handleSubmit} noValidate className="px-4 py-5 sm:px-6 sm:py-5">
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-      {/* Unit Type — commercial or residential (filters the unit list) */}
-      <Field
-        wide
-        label={<Label ar="نوع الوحدة" en="Unit Type" icon="unit" />}
-        error={errors.unitType}
-        errorId="unitType-error"
-      >
-        <div
-          ref={(el) => {
-            fieldRefs.current.unitType = el
-          }}
-          tabIndex={-1}
-          role="radiogroup"
-          aria-describedby={errors.unitType ? 'unitType-error' : undefined}
-          className="grid grid-cols-1 gap-3 outline-none sm:grid-cols-2"
-        >
-          {(
-            [
-              { v: 'residential', ar: 'سكني', en: 'Residential' },
-              { v: 'commercial', ar: 'تجاري', en: 'Commercial' },
-            ] as const
-          ).map((opt) => {
-            const active = unitType === opt.v
-            return (
-              <button
-                key={opt.v}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => {
-                  setUnitType(opt.v)
-                  setUnit('') // the previous unit may not exist in the new category
-                  setErrors((er) => ({ ...er, unitType: undefined, unit: undefined }))
-                }}
-                className={[
-                  'flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition',
-                  active
-                    ? 'border-[#222a4d] bg-[#222a4d] text-white shadow-sm'
-                    : 'border-slate-200 bg-slate-50/60 text-[#2d3e50] hover:border-[#222a4d]/40 hover:bg-[#222a4d]/5',
-                ].join(' ')}
-              >
-                {opt.ar}
-                <span dir="ltr" className={active ? 'text-white/70' : 'text-slate-400'}>
-                  / {opt.en}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </Field>
-
       {/* Unit Number */}
       <Field
         label={<Label ar="رقم الوحدة" en="Unit Number" icon="unit" />}
@@ -584,11 +523,9 @@ export default function BookingForm() {
           placeholder={
             unitsLoading
               ? 'جارٍ تحميل الوحدات…'
-              : !unitType
-                ? 'اختر نوع الوحدة أولاً'
-                : unitOptions.length === 0
-                  ? 'لا توجد وحدات متاحة'
-                  : 'اختر رقم الوحدة'
+              : unitOptions.length === 0
+                ? 'لا توجد وحدات متاحة'
+                : 'اختر رقم الوحدة'
           }
           onChange={(v) => {
             setUnit(v)
@@ -609,14 +546,14 @@ export default function BookingForm() {
             fieldRefs.current.mobile = el
           }}
           inputMode="numeric"
-          maxLength={15}
+          maxLength={11}
           value={mobile}
           aria-invalid={!!errors.mobile}
           aria-describedby={errors.mobile ? 'mobile-error' : undefined}
           onChange={(e) => {
-            // Strip non-digits and hard-cap at 15 (the server max) so the field
-            // can't run away even on paste.
-            const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 15)
+            // Strip non-digits and hard-cap at 11 so the field can't run away
+            // even on paste.
+            const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 11)
             setMobile(digits)
             liveValidate('mobile', { mobile: digits })
           }}
@@ -832,7 +769,7 @@ export default function BookingForm() {
             الداخلى للكهرباء بوحدة الألياف الضوئية المتواجدة خارج الوحدة ( شقة / فيلا ).
           </li>
           <li>
-            ٢- لا يمكن توصيل وتشغيل خدمة HPD Home Connect بالوحدة ( شقة / فيلا ) في حالة وجود اي
+            ٢- لا يمكن توصيل وتشغيل خدمة HPD Triple Play بالوحدة ( شقة / فيلا ) في حالة وجود اي
             زاويه قائمة ( زاويه ٩٠ درجه ) فالمسار المخصص لتلك الخدمة.
           </li>
           <li>
