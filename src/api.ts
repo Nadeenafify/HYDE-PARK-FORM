@@ -18,15 +18,19 @@ export class ApiError extends Error {
 const NETWORK_ERROR =
   'تعذّر الاتصال بالخادم — تأكد من اتصالك بالإنترنت وحاول مرة أخرى'
 
+export type UnitType = 'commercial' | 'residential'
+
 export type Unit = {
   id: string
   code: string
+  type: UnitType
   description: string | null
   isActive: boolean
 }
 
 export type BookingPayload = {
   unitCode: string
+  unitType: UnitType
   firstName: string
   lastName: string
   mobile: string
@@ -72,16 +76,24 @@ export async function fetchBookedSlots(): Promise<TakenSlot[]> {
   return (await request('/api/bookings/availability')).json()
 }
 
-export type ClosedDay = { id: string; date: string; reason: string | null }
+export type DaySchedule = { open: boolean; slots: string[] }
 
-/** Admin-declared closed days (holidays), so the calendar can disable them. */
-export async function fetchClosedDays(): Promise<ClosedDay[]> {
-  return (await request('/api/closed-days')).json()
+/** Admin-configured working days + time slots that drive the booking calendar. */
+export type Schedule = {
+  mode: 'global' | 'perDay'
+  globalSlots: string[]
+  /** 7 entries indexed by weekday (0 = Sunday … 6 = Saturday). */
+  days: DaySchedule[]
+}
+
+export async function fetchSchedule(): Promise<Schedule> {
+  return (await request('/api/schedule')).json()
 }
 
 export async function submitBooking(payload: BookingPayload) {
   const form = new FormData()
   form.append('unitCode', payload.unitCode)
+  form.append('unitType', payload.unitType)
   form.append('firstName', payload.firstName)
   form.append('lastName', payload.lastName)
   form.append('mobile', payload.mobile)
