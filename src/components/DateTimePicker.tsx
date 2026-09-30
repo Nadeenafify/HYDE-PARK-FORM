@@ -74,7 +74,9 @@ export default function DateTimePicker({
   schedule = null,
 }: Props) {
   const today = startOfDay(new Date())
-  const initial = selectedDate ?? today
+  // Same-day booking isn't allowed: the earliest bookable day is tomorrow.
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+  const initial = selectedDate ?? tomorrow
   const [viewYear, setViewYear] = useState(initial.getFullYear())
   const [viewMonth, setViewMonth] = useState(initial.getMonth())
 
@@ -169,7 +171,7 @@ export default function DateTimePicker({
             if (day === null) return <div key={`e-${idx}`} />
             const cellDate = new Date(viewYear, viewMonth, day)
             const isClosed = !isOpenWeekday(schedule, cellDate.getDay())
-            const isPast = cellDate < today
+            const isPast = cellDate < tomorrow
             const isFull = fullDates.has(toISO(cellDate))
             const disabled = isPast || isFull || isClosed
             const isSelected = sameDay(cellDate, selectedDate)
